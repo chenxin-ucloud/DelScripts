@@ -1,0 +1,10 @@
+.claude
+.vscode
+/build
+/dist
+build.sh
+/sdk
+*__pycache__
+*.spec
+/docs
+/gui/assets/
