@@ -1,0 +1,110 @@
+{
+    "北京": {
+        "Region": "cn-bj2",
+        "Zone": "cn-bj2-02"
+    },
+    "上海": {
+        "Region": "cn-sh2",
+        "Zone": "cn-sh2-02"
+    },
+    "广州": {
+        "Region": "cn-gd",
+        "Zone": "cn-gd-02"
+    },
+    "乌兰察布": {
+        "Region": "cn-wlcb",
+        "Zone": "cn-wlcb-01"
+    },
+    "香港": {
+        "Region": "hk",
+        "Zone": "hk-02"
+    },
+    "莫斯科": {
+        "Region": "rus-mosc",
+        "Zone": "rus-mosc-01"
+    },
+    "东京": {
+        "Region": "jpn-tky",
+        "Zone": "jpn-tky-01"
+    },
+    "洛杉矶": {
+        "Region": "us-ca",
+        "Zone": "us-ca-01"
+    },
+    "首尔": {
+        "Region": "kr-seoul",
+        "Zone": "kr-seoul-01"
+    },
+    "台北": {
+        "Region": "tw-tp",
+        "Zone": "tw-tp-01"
+    },
+    "新加坡": {
+        "Region": "sg",
+        "Zone": "sg-02"
+    },
+    "法兰克福": {
+        "Region": "ge-fra",
+        "Zone": "ge-fra-01"
+    },
+    "曼谷(小型化)": {
+        "Region": "th-bkk",
+        "Zone": "th-bkk-02"
+    },
+    "马尼拉(小型化)": {
+        "Region": "ph-mnl",
+        "Zone": "ph-mnl-01"
+    },
+    "胡志明(小型化)": {
+        "Region": "vn-sng",
+        "Zone": "vn-sng-01"
+    },
+    "伦敦(小型化)": {
+        "Region": "uk-london",
+        "Zone": "uk-london-01"
+    },
+    "雅加达(小型化)": {
+        "Region": "idn-jakarta",
+        "Zone": "idn-jakarta-01"
+    },
+    "孟买": {
+        "Region": "ind-mumbai",
+        "Zone": "ind-mumbai-01"
+    },
+    "华盛顿": {
+        "Region": "us-ws",
+        "Zone": "us-ws-01"
+    },
+    "圣保罗": {
+        "Region": "bra-saopaulo",
+        "Zone": "bra-saopaulo-01"
+    },
+    "迪拜": {
+        "Region": "uae-dubai",
+        "Zone": "uae-dubai-01"
+    },
+    "拉各斯": {
+        "Region": "afr-nigeria",
+        "Zone": "afr-nigeria-01"
+    },
+    "丹佛": {
+        "Region": "us-den",
+        "Zone": "us-den-01"
+    },
+    "巴基斯坦": {
+        "Region": "pk-khi",
+        "Zone": "pk-khi-01"
+    },
+    "哈萨克斯坦": {
+        "Region": "kz-ala",
+        "Zone": "kz-ala-01"
+    },
+    "乌兹别克斯坦": {
+        "Region": "uz-tas",
+        "Zone": "uz-tas-01"
+    },
+    "墨西哥": {
+        "Region": "mx-mex",
+        "Zone": "mx-mex-01"
+    }
+}

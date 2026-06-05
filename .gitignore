@@ -2,12 +2,11 @@
 .vscode
 /build
 /dist
-build.sh
-/sdk
+/sdk/logs/
+/sdk/config.json
 *__pycache__
 *.spec
 /docs
-/gui/assets/
 # macOS 系统文件
 .DS_Store
 **/.DS_Store

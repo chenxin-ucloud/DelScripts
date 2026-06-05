@@ -1,0 +1,10 @@
+{
+    "测试03": {
+        "Region": "test03",
+        "Zone": "test03-01"
+    },
+    "测试05": {
+        "Region": "test05",
+        "Zone": "test05-01"
+    }
+}

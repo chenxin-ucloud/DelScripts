@@ -18,12 +18,12 @@ UHost → UDisk → NATGW → UNI → ALB → NLB → EIP → UGN → UWAN → S
 
 - macOS 11.0+，Apple Silicon（M 系列）
 - Python 3.x（开发模式）
-- 依赖：`ucloud-python-sdk`、`requests`、`pyinstaller`（打包）
+- 依赖：`ucloud-python-sdk`、`pyinstaller`（打包）
 
 ## 开发模式运行
 
 ```bash
-pip3 install ucloud-python-sdk requests
+pip3 install ucloud-python-sdk
 cd gui
 python3 main.py
 ```
