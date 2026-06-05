@@ -94,7 +94,7 @@ def run_deletion(state: AppState, log_queue: queue.Queue, stop_event: threading.
                     if stop_event.is_set():
                         break
                     try:
-                        delete_func(client, loc_name, region, zone, project_id)
+                        delete_func(client, loc_name, region, zone, project_id, stop_event)
                     except Exception as e:
                         log_queue.put(f"[ERROR] [{loc_name}] 处理 {resource_name} 时发生错误: {e}")
 

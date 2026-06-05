@@ -5,13 +5,11 @@
 删除失败时跳过并记录日志
 """
 
-from ucloud.core import exc
 from ucloud.client import Client
 import logging
 import json
 import os
 import time
-from datetime import datetime
 
 # 创建 logger（不在模块级别添加任何 handlers，由调用方负责配置）
 logger = logging.getLogger(__name__)
@@ -76,17 +74,35 @@ def get_client(region, project_id, public_key, private_key, base_url=None):
     return Client(config)
 
 
-def delete_uhosts(client, loc_name, region, zone, project_id):
+def _interruptible_sleep(seconds, stop_event=None):
+    """分段 sleep，每 0.5 秒检查一次停止信号；stop_event 为 None 时退化为普通 sleep"""
+    if stop_event is None:
+        time.sleep(seconds)
+        return
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if stop_event.is_set():
+            return
+        time.sleep(0.5)
+
+
+def _stopped(stop_event):
+    return stop_event is not None and stop_event.is_set()
+
+
+def delete_uhosts(client, loc_name, region, zone, project_id, stop_event=None):
     """删除 UHost 实例"""
     try:
         resp = client.uhost().describe_uhost_instance()
         uhosts = [uhost['UHostId'] for uhost in resp.get('UHostSet', []) if 'UHostId' in uhost]
         terminated_any = False
         for uhostid in uhosts:
+            if _stopped(stop_event):
+                return
             try:
                 logger.info(f"[{loc_name}] 正在关闭项目:{project_id} 下的UHost: {uhostid}...")
                 client.uhost().poweroff_uhost_instance({'UHostId': uhostid})
-                time.sleep(10)
+                _interruptible_sleep(10, stop_event)
                 describe_resp = client.uhost().describe_uhost_instance({'UHostId': uhostid})
                 state = describe_resp['UHostSet'][0].get('State')
                 if state == 'Stopped':
@@ -107,17 +123,19 @@ def delete_uhosts(client, loc_name, region, zone, project_id):
         if terminated_any:
             wait_seconds = 15
             logger.info(f"[{loc_name}] 项目:{project_id} 等待 {wait_seconds} 秒，确保数据盘完成卸载...")
-            time.sleep(wait_seconds)
+            _interruptible_sleep(wait_seconds, stop_event)
     except Exception as e:
         logger.error(f"[{loc_name}] 获取UHost列表失败: {e}")
 
 
-def delete_udisks(client, loc_name, region, zone, project_id):
+def delete_udisks(client, loc_name, region, zone, project_id, stop_event=None):
     """删除 UDisk 实例"""
     try:
         resp = client.udisk().describe_udisk()
         udisks = [udisk['UDiskId'] for udisk in resp.get('DataSet', []) if 'UDiskId' in udisk]
         for udiskid in udisks:
+            if _stopped(stop_event):
+                return
             try:
                 logger.info(f"[{loc_name}] 项目: {project_id} 正在删除 UDisk: {udiskid}...")
                 client.udisk().delete_udisk({'UDiskId': udiskid, "Zone": zone})
@@ -129,12 +147,14 @@ def delete_udisks(client, loc_name, region, zone, project_id):
         logger.error(f"[{loc_name}] 获取UDisk列表失败: {e}")
 
 
-def delete_natgws(client, loc_name, region, zone, project_id):
+def delete_natgws(client, loc_name, region, zone, project_id, stop_event=None):
     """删除 NAT 网关"""
     try:
         resp = client.vpc().describe_natgw()
         natgws = [natgw['NATGWId'] for natgw in resp.get("DataSet", []) if 'NATGWId' in natgw]
         for natgwid in natgws:
+            if _stopped(stop_event):
+                return
             try:
                 logger.info(f"[{loc_name}] 项目: {project_id} 正在删除 NATGW: {natgwid}...")
                 client.vpc().delete_natgw({'NATGWId': natgwid, "ReleaseEip": "true"})
@@ -146,12 +166,14 @@ def delete_natgws(client, loc_name, region, zone, project_id):
         logger.error(f"[{loc_name}] 获取NATGW列表失败: {e}")
 
 
-def delete_unis(client, loc_name, region, zone, project_id):
+def delete_unis(client, loc_name, region, zone, project_id, stop_event=None):
     """删除 UNI 虚拟网卡"""
     try:
         resp = client.vpc().describe_network_interface()
         unis = [uni['InterfaceId'] for uni in resp.get("NetworkInterfaceSet", []) if 'InterfaceId' in uni]
         for uniid in unis:
+            if _stopped(stop_event):
+                return
             try:
                 logger.info(f"[{loc_name}] 项目: {project_id} 正在删除 UNI: {uniid}...")
                 client.vpc().delete_network_interface({'InterfaceId': uniid})
@@ -163,12 +185,14 @@ def delete_unis(client, loc_name, region, zone, project_id):
         logger.error(f"[{loc_name}] 获取UNI列表失败: {e}")
 
 
-def delete_albs(client, loc_name, region, zone, project_id):
+def delete_albs(client, loc_name, region, zone, project_id, stop_event=None):
     """删除 ALB 负载均衡"""
     try:
         resp = client.ulb().describe_load_balancers()
         loadbalancers = [lb['LoadBalancerId'] for lb in resp.get("LoadBalancers", []) if 'LoadBalancerId' in lb]
         for lbid in loadbalancers:
+            if _stopped(stop_event):
+                return
             try:
                 logger.info(f"[{loc_name}] 项目: {project_id} 正在删除 ALB: {lbid}...")
                 client.ulb().delete_load_balancer({'LoadBalancerId': lbid})
@@ -180,12 +204,14 @@ def delete_albs(client, loc_name, region, zone, project_id):
         logger.error(f"[{loc_name}] 获取ALB列表失败: {e}")
 
 
-def delete_nlbs(client, loc_name, region, zone, project_id):
+def delete_nlbs(client, loc_name, region, zone, project_id, stop_event=None):
     """删除 NLB 网络负载均衡"""
     try:
         resp = client.nlb().describe_network_load_balancers()
         nlbs = [lb['NetworkLoadBalancerId'] for lb in resp.get('NetworkLoadBalancers', []) if 'NetworkLoadBalancerId' in lb]
         for nlbid in nlbs:
+            if _stopped(stop_event):
+                return
             try:
                 logger.info(f"[{loc_name}] 项目: {project_id} 正在删除 NLB: {nlbid}...")
                 client.nlb().delete_network_load_balancer({'NetworkLoadBalancerId': nlbid})
@@ -201,7 +227,7 @@ def delete_nlbs(client, loc_name, region, zone, project_id):
             logger.error(f"[{loc_name}] 获取NLB列表失败: {e}")
 
 
-def delete_ugns(client, loc_name, region, zone, project_id):
+def delete_ugns(client, loc_name, region, zone, project_id, stop_event=None):
     """删除 UGN 云联网"""
     try:
         # 查询 UGN 列表
@@ -210,6 +236,8 @@ def delete_ugns(client, loc_name, region, zone, project_id):
         ugn_ids = [ugn['UGNID'] for ugn in ugns if 'UGNID' in ugn]
         # 第一步：解绑所有 UGN 绑定的网络实例
         for ugnid in ugn_ids:
+            if _stopped(stop_event):
+                return
             try:
                 # 获取 UGN 绑定的网络实例
                 networks_resp = client.ugn().describe_simple_ugn({'UGNID': ugnid})
@@ -235,6 +263,8 @@ def delete_ugns(client, loc_name, region, zone, project_id):
 
         # 第二步：删除所有 UGN
         for ugnid in ugn_ids:
+            if _stopped(stop_event):
+                return
             try:
                 logger.info(f"[{loc_name}] 项目: {project_id} 正在删除 UGN: {ugnid}...")
                 # 使用 invoke 方法调用 DelUGN
@@ -247,12 +277,14 @@ def delete_ugns(client, loc_name, region, zone, project_id):
         logger.error(f"[{loc_name}] 获取UGN列表失败: {e}")
 
 
-def delete_eips(client, loc_name, region, zone, project_id):
+def delete_eips(client, loc_name, region, zone, project_id, stop_event=None):
     """删除 EIP 弹性IP - 先解绑再删除"""
     try:
         resp = client.unet().describe_eip()
         eips = resp.get('EIPSet', [])
         for eip in eips:
+            if _stopped(stop_event):
+                return
             eipid = eip.get('EIPId')
             if not eipid:
                 continue
@@ -295,7 +327,7 @@ def delete_eips(client, loc_name, region, zone, project_id):
         logger.error(f"[{loc_name}] 获取EIP列表失败: {e}")
 
 
-def delete_uwans(client, loc_name, region, zone, project_id):
+def delete_uwans(client, loc_name, region, zone, project_id, stop_event=None):
     """删除 UWAN 资源 - CE网关和POPGW虚拟路由器"""
     # 第一步：删除 CE 网关
     try:
@@ -305,6 +337,8 @@ def delete_uwans(client, loc_name, region, zone, project_id):
         if ce_gateways:
             logger.info(f"[{loc_name}] 项目: {project_id} 找到 {len(ce_gateways)} 个 CE 网关: {ce_gateways}")
             for vpnid in ce_gateways:
+                if _stopped(stop_event):
+                    return
                 try:
                     logger.info(f"[{loc_name}] 项目: {project_id} 正在删除 CE 网关: {vpnid}...")
                     client.uwsc().invoke('DeleteCEGateway', {'VPNId': vpnid, 'Backend': 'UWSC'})
@@ -323,6 +357,8 @@ def delete_uwans(client, loc_name, region, zone, project_id):
         if popgws:
             logger.info(f"[{loc_name}] 项目: {project_id} 找到 {len(popgws)} 个 POPGW: {popgws}")
             for popgwid in popgws:
+                if _stopped(stop_event):
+                    return
                 try:
                     logger.info(f"[{loc_name}] 项目: {project_id} 正在删除 POPGW: {popgwid}...")
                     client.uwsc().invoke('DeletePOPGW', {'PopGwId': popgwid, 'Backend': 'UWSC'})
@@ -334,12 +370,14 @@ def delete_uwans(client, loc_name, region, zone, project_id):
         logger.error(f"[{loc_name}] 获取POPGW列表失败: {e}")
 
 
-def delete_secgroups(client, loc_name, region, zone, project_id):
+def delete_secgroups(client, loc_name, region, zone, project_id, stop_event=None):
     """删除安全组"""
     try:
         resp = client.vpc().describe_sec_group()
         secgroups = [sg['SecGroupId'] for sg in resp.get("DataSet", []) if 'SecGroupId' in sg]
         for sgid in secgroups:
+            if _stopped(stop_event):
+                return
             try:
                 logger.info(f"[{loc_name}] 项目: {project_id} 正在删除安全组: {sgid}...")
                 client.vpc().delete_sec_group({'SecGroupId': [sgid]})
@@ -351,13 +389,15 @@ def delete_secgroups(client, loc_name, region, zone, project_id):
         logger.error(f"[{loc_name}] 获取安全组列表失败: {e}")
 
 
-def delete_acls(client, loc_name, region, zone, project_id):
+def delete_acls(client, loc_name, region, zone, project_id, stop_event=None):
     """删除网络 ACL - 先解除子网绑定再删除"""
     try:
         resp = client.vpc().describe_network_acl()
         # API 返回的是 AclList 而不是 DataSet
         acls = resp.get("AclList", [])
         for acl in acls:
+            if _stopped(stop_event):
+                return
             aclid = acl.get('AclId')
             if not aclid:
                 continue
@@ -396,12 +436,14 @@ def delete_acls(client, loc_name, region, zone, project_id):
             logger.error(f"[{loc_name}] 获取ACL列表失败: {e}")
 
 
-def delete_subnets(client, loc_name, region, zone, project_id):
+def delete_subnets(client, loc_name, region, zone, project_id, stop_event=None):
     """删除子网"""
     try:
         resp = client.vpc().describe_subnet()
         subnets = [subnet['SubnetId'] for subnet in resp.get("DataSet", []) if 'SubnetId' in subnet]
         for subnetid in subnets:
+            if _stopped(stop_event):
+                return
             try:
                 logger.info(f"[{loc_name}] 项目: {project_id} 正在删除子网: {subnetid}...")
                 client.vpc().delete_subnet({'SubnetId': subnetid})
@@ -413,12 +455,14 @@ def delete_subnets(client, loc_name, region, zone, project_id):
         logger.error(f"[{loc_name}] 获取子网列表失败: {e}")
 
 
-def delete_vpcs(client, loc_name, region, zone, project_id):
+def delete_vpcs(client, loc_name, region, zone, project_id, stop_event=None):
     """删除 VPC"""
     try:
         resp = client.vpc().describe_vpc()
         vpcs = [vpc['VPCId'] for vpc in resp.get("DataSet", []) if 'VPCId' in vpc]
         for vpcid in vpcs:
+            if _stopped(stop_event):
+                return
             try:
                 # 先删除 VPC 互通
                 try:
