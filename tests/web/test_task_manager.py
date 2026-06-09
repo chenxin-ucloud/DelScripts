@@ -174,3 +174,62 @@ def test_worker_serializes_two_tasks(monkeypatch):
         time.sleep(0.05)
     assert t1.state == "succeeded" and t2.state == "succeeded"
     assert t2.started_at >= t1.finished_at
+
+
+def test_worker_bridges_sdk_logger_into_task_buffer(monkeypatch):
+    """SDK 内部 logger.info()/error() 应桥接到 task.log_buffer。"""
+    import logging
+    from web import task_manager as tm
+
+    def fake_runner(**kw):
+        # 模拟 SDK 内部 delete_* 通过自己的 logger 输出（包括错误）
+        sdk_logger = logging.getLogger("sdk.delete_all_resources")
+        sdk_logger.info("处理资源 X")
+        sdk_logger.error("删除 X 失败: 230 Params [Region] not available")
+
+    monkeypatch.setattr(tm, "run_deletion_core", fake_runner)
+    monkeypatch.setattr(tm, "_load_regions_for_env",
+                        lambda env: {"北京": {"Region": "cn-bj2", "Zone": "cn-bj2-02"}})
+
+    manager = tm.TaskManager(autostart=True)
+    t = tm.Task(task_id="bridge1", env_name="测试环境",
+                public_key="p", private_key="p",
+                project_ids=["p1"], selected_regions=["北京"], selected_resources=["UHost"])
+    manager.submit(t)
+    for _ in range(50):
+        if t.state in ("succeeded", "failed", "stopped"):
+            break
+        time.sleep(0.05)
+    assert t.state == "succeeded"
+    lines = [it["line"] for it in t.log_buffer]
+    assert "处理资源 X" in lines
+    assert any("Params [Region] not available" in line for line in lines)
+    # 同时确认 ERROR level 被保留
+    levels = [it["level"] for it in t.log_buffer]
+    assert "ERROR" in levels
+
+
+def test_worker_removes_bridge_handler_between_tasks(monkeypatch):
+    """每个任务完成后桥接 handler 必须移除，避免下个任务收到上个任务的遗留日志。"""
+    import logging
+    from web import task_manager as tm
+
+    def fake_runner(**kw):
+        logging.getLogger("sdk.delete_all_resources").info("task log")
+
+    monkeypatch.setattr(tm, "run_deletion_core", fake_runner)
+    monkeypatch.setattr(tm, "_load_regions_for_env",
+                        lambda env: {"北京": {"Region": "cn-bj2", "Zone": "cn-bj2-02"}})
+
+    manager = tm.TaskManager(autostart=True)
+    t1 = tm.Task(task_id="iso1", env_name="测试环境", public_key="p", private_key="p",
+                 project_ids=["p"], selected_regions=["北京"], selected_resources=["UHost"])
+    manager.submit(t1)
+    for _ in range(50):
+        if t1.state == "succeeded":
+            break
+        time.sleep(0.05)
+
+    sdk_logger = logging.getLogger("sdk.delete_all_resources")
+    handlers_after = [h for h in sdk_logger.handlers if isinstance(h, __import__("web.log_handler", fromlist=["BufferHandler"]).BufferHandler)]
+    assert handlers_after == [], "bridge handler 未在任务结束后移除"

@@ -1,5 +1,6 @@
 """Task 数据模型与 TaskManager 队列管理。"""
 import json
+import logging
 import os
 import threading
 import time
@@ -8,6 +9,11 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from sdk.runner_core import resolve_api_url, run_deletion_core
+from web.log_handler import BufferHandler
+
+# SDK 内部 delete_* 函数通过 Python logging 输出日志（INFO/ERROR）。
+# Worker 在每个任务执行期间把该 logger 的输出桥接到 task 的 buffer。
+_SDK_LOGGER_NAME = "sdk.delete_all_resources"
 
 
 _ASSETS_DIR = os.path.join(
@@ -113,6 +119,12 @@ class TaskManager:
                 self._running = task
                 task.state = "running"
                 task.started_at = time.time()
+            # 把 SDK 的 logging 输出桥接到 task.buffer（否则 delete_* 的 INFO/ERROR
+            # 只会出现在后端控制台，前端日志面板看不到）
+            sdk_logger = logging.getLogger(_SDK_LOGGER_NAME)
+            sdk_logger.setLevel(logging.INFO)
+            bridge = BufferHandler(task)
+            sdk_logger.addHandler(bridge)
             try:
                 regions = _load_regions_for_env(task.env_name)
                 effective_api_url = resolve_api_url(task.env_name, task.api_url)
@@ -132,6 +144,8 @@ class TaskManager:
                 task.append_log({"level": "ERROR", "line": f"任务异常: {e}", "ts": time.time()})
                 terminal = "failed"
             finally:
+                # 移除桥接 handler，避免下个任务收到上个任务遗留的日志
+                sdk_logger.removeHandler(bridge)
                 with self._lock:
                     task.state = terminal
                     task.finished_at = time.time()
