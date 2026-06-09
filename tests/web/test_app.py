@@ -1,4 +1,5 @@
 import pytest
+import uuid
 
 from web.app import create_app
 
@@ -47,3 +48,86 @@ def test_snapshot_empty(client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data == {"running": None, "pending": [], "history": []}
+
+
+def _valid_payload(**overrides):
+    base = dict(
+        env_name="测试环境",
+        public_key="ABC123",
+        private_key="secret-xyz",
+        project_ids=["org-abc"],
+        selected_regions=[],     # 各测试自己填
+        selected_resources=["UHost"],
+        api_url="",
+    )
+    base.update(overrides)
+    return base
+
+
+def test_post_task_missing_public_key(client):
+    p = _valid_payload(public_key="", selected_regions=["北京"])
+    resp = client.post("/api/tasks", json=p)
+    assert resp.status_code == 400
+    assert resp.get_json()["code"] == "INVALID_PARAM"
+
+
+def test_post_task_missing_private_key(client):
+    p = _valid_payload(private_key="", selected_regions=["北京"])
+    resp = client.post("/api/tasks", json=p)
+    assert resp.status_code == 400
+
+
+def test_post_task_empty_project_ids(client):
+    p = _valid_payload(project_ids=[], selected_regions=["北京"])
+    resp = client.post("/api/tasks", json=p)
+    assert resp.status_code == 400
+
+
+def test_post_task_invalid_env_name(client):
+    p = _valid_payload(env_name="开发环境", selected_regions=["北京"])
+    resp = client.post("/api/tasks", json=p)
+    assert resp.status_code == 400
+
+
+def test_post_task_unknown_region_rejected(client):
+    p = _valid_payload(selected_regions=["平壤"])
+    resp = client.post("/api/tasks", json=p)
+    assert resp.status_code == 400
+
+
+def test_post_task_unknown_resource_rejected(client):
+    # 拿一个真实存在的区域名
+    regions = client.get("/api/regions?env=test").get_json()
+    a_region = next(iter(regions.keys()))
+    p = _valid_payload(selected_regions=[a_region], selected_resources=["NotAResource"])
+    resp = client.post("/api/tasks", json=p)
+    assert resp.status_code == 400
+
+
+def test_post_task_success_returns_task_id_and_position(client):
+    regions = client.get("/api/regions?env=test").get_json()
+    a_region = next(iter(regions.keys()))
+    p = _valid_payload(selected_regions=[a_region])
+    resp = client.post("/api/tasks", json=p)
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "task_id" in data
+    assert data["position"] == 0
+
+
+def test_get_task_redacts_secrets(client):
+    regions = client.get("/api/regions?env=test").get_json()
+    a_region = next(iter(regions.keys()))
+    p = _valid_payload(public_key="ABCDEFG", selected_regions=[a_region])
+    tid = client.post("/api/tasks", json=p).get_json()["task_id"]
+    resp = client.get(f"/api/tasks/{tid}")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "private_key" not in data
+    assert data["public_key"] == "ABCD***"
+
+
+def test_get_unknown_task_404(client):
+    resp = client.get("/api/tasks/missing")
+    assert resp.status_code == 404
+    assert resp.get_json()["code"] == "TASK_NOT_FOUND"
