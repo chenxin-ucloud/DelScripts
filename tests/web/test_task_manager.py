@@ -92,3 +92,85 @@ def test_position_of_running_is_zero(manager):
     manager._pending.append(t)
     manager._move_to_running(t)
     assert manager.position_of(t) == 0
+
+
+def test_worker_runs_task_to_succeeded(monkeypatch):
+    """worker 调用 run_deletion_core 后任务进 succeeded，私钥被擦除。"""
+    from web import task_manager as tm
+
+    called = {}
+
+    def fake_runner(**kw):
+        called["kw"] = kw
+        kw["log_sink"].put({"level": "INFO", "line": "fake done", "ts": 0.0})
+
+    monkeypatch.setattr(tm, "run_deletion_core", fake_runner)
+    # 也要 stub 区域加载
+    monkeypatch.setattr(tm, "_load_regions_for_env", lambda env: {"北京": {"Region":"cn-bj2","Zone":"cn-bj2-02"}})
+
+    manager = tm.TaskManager(autostart=True)
+    t = tm.Task(
+        task_id="t1", env_name="测试环境",
+        public_key="pub", private_key="SECRET",
+        project_ids=["p1"], selected_regions=["北京"],
+        selected_resources=["UHost"],
+    )
+    manager.submit(t)
+    # 等任务跑完
+    for _ in range(50):
+        if t.state in ("succeeded", "failed", "stopped"):
+            break
+        time.sleep(0.05)
+    assert t.state == "succeeded"
+    assert t.private_key == ""           # 私钥已擦除
+    assert t.finished_at is not None
+    # log_sink 收到了日志
+    lines = [it["line"] for it in t.log_buffer]
+    assert "fake done" in lines
+
+
+def test_worker_handles_runner_exception_as_failed(monkeypatch):
+    from web import task_manager as tm
+
+    def boom(**kw):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(tm, "run_deletion_core", boom)
+    monkeypatch.setattr(tm, "_load_regions_for_env", lambda env: {"北京": {"Region":"cn-bj2","Zone":"cn-bj2-02"}})
+
+    manager = tm.TaskManager(autostart=True)
+    t = tm.Task(task_id="t2", env_name="测试环境",
+                public_key="p", private_key="p",
+                project_ids=["p1"], selected_regions=["北京"], selected_resources=["UHost"])
+    manager.submit(t)
+    for _ in range(50):
+        if t.state in ("succeeded","failed","stopped"):
+            break
+        time.sleep(0.05)
+    assert t.state == "failed"
+    assert t.private_key == ""
+
+
+def test_worker_serializes_two_tasks(monkeypatch):
+    """两个任务依次执行，第二个的 started_at 晚于第一个的 finished_at。"""
+    from web import task_manager as tm
+
+    def slow(**kw):
+        time.sleep(0.2)
+
+    monkeypatch.setattr(tm, "run_deletion_core", slow)
+    monkeypatch.setattr(tm, "_load_regions_for_env", lambda env: {"北京": {"Region":"cn-bj2","Zone":"cn-bj2-02"}})
+
+    manager = tm.TaskManager(autostart=True)
+    t1 = tm.Task(task_id="t1", env_name="测试环境", public_key="p", private_key="p",
+                 project_ids=["p"], selected_regions=["北京"], selected_resources=["UHost"])
+    t2 = tm.Task(task_id="t2", env_name="测试环境", public_key="p", private_key="p",
+                 project_ids=["p"], selected_regions=["北京"], selected_resources=["UHost"])
+    manager.submit(t1)
+    manager.submit(t2)
+    for _ in range(100):
+        if t1.state == "succeeded" and t2.state == "succeeded":
+            break
+        time.sleep(0.05)
+    assert t1.state == "succeeded" and t2.state == "succeeded"
+    assert t2.started_at >= t1.finished_at

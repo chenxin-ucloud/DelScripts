@@ -1,9 +1,25 @@
 """Task 数据模型与 TaskManager 队列管理。"""
+import json
+import os
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import List, Optional
+
+from sdk.runner_core import run_deletion_core
+
+
+_ASSETS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "gui", "assets",
+)
+
+
+def _load_regions_for_env(env_name: str) -> dict:
+    filename = "region_test.json" if env_name == "测试环境" else "region.json"
+    with open(os.path.join(_ASSETS_DIR, filename), "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def _redact_public_key(pk: str) -> str:
@@ -89,8 +105,41 @@ class TaskManager:
         self._worker.start()
 
     def _loop(self) -> None:
-        # 在 Task 8 实现
-        raise NotImplementedError
+        while True:
+            with self._lock:
+                while not self._pending:
+                    self._wake.wait()
+                task = self._pending.popleft()
+                self._running = task
+                task.state = "running"
+                task.started_at = time.time()
+            try:
+                regions = _load_regions_for_env(task.env_name)
+                run_deletion_core(
+                    regions=regions,
+                    project_ids=task.project_ids,
+                    public_key=task.public_key,
+                    private_key=task.private_key,
+                    api_url=task.api_url,
+                    selected_regions=task.selected_regions,
+                    selected_resources=task.selected_resources,
+                    log_sink=task,
+                    stop_event=task.stop_event,
+                )
+                terminal = "stopped" if task.stop_event.is_set() else "succeeded"
+            except Exception as e:
+                task.append_log({"level": "ERROR", "line": f"任务异常: {e}", "ts": time.time()})
+                terminal = "failed"
+            finally:
+                with self._lock:
+                    task.state = terminal
+                    task.finished_at = time.time()
+                    task.private_key = ""
+                    self._history.append(task)
+                    self._running = None
+                # 终态后唤醒所有 SSE 订阅者
+                with task.log_cond:
+                    task.log_cond.notify_all()
 
     def submit(self, task: Task) -> int:
         """入队，返回任务前面还有多少个任务（含 running）。0 = 立即执行。"""
