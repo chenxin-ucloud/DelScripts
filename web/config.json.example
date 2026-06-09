@@ -1,0 +1,6 @@
+{
+  "host": "127.0.0.1",
+  "port": 5000,
+  "max_log_buffer": 500,
+  "max_history": 20
+}
