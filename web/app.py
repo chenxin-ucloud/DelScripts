@@ -105,4 +105,44 @@ def create_app(testing: bool = False) -> Tuple[Flask, TaskManager]:
             return _err("TASK_NOT_FOUND", 404)
         return jsonify(t.to_public_dict())
 
+    @app.route("/api/tasks/<task_id>/stop", methods=["POST"])
+    def stop_task(task_id):
+        t = manager.get(task_id)
+        if not t:
+            return _err("TASK_NOT_FOUND", 404)
+        if t.state in {"succeeded", "failed", "stopped"}:
+            return _err("TASK_FINISHED", 409, "任务已结束")
+        ok = manager.stop(task_id)
+        return jsonify(ok=ok)
+
+    @app.route("/api/tasks/<task_id>/stream")
+    def stream_task(task_id):
+        t = manager.get(task_id)
+        if not t:
+            return _err("TASK_NOT_FOUND", 404)
+        resp = Response(stream_events(t), mimetype="text/event-stream")
+        resp.headers["Cache-Control"] = "no-cache"
+        resp.headers["X-Accel-Buffering"] = "no"
+        return resp
+
     return app, manager
+
+
+def _load_config() -> dict:
+    cfg_path = os.path.join(os.path.dirname(__file__), "config.json")
+    if not os.path.exists(cfg_path):
+        return {"host": "127.0.0.1", "port": 5000}
+    import json
+    with open(cfg_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+if __name__ == "__main__":
+    cfg = _load_config()
+    app, _ = create_app(testing=False)
+    host = cfg.get("host", "127.0.0.1")
+    port = int(cfg.get("port", 5000))
+    print(f"UCloud Cleaner Web 已启动")
+    print(f"访问地址: http://{host}:{port}")
+    print(f"按 Ctrl+C 退出")
+    app.run(host=host, port=port, threaded=True, use_reloader=False)

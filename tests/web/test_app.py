@@ -131,3 +131,42 @@ def test_get_unknown_task_404(client):
     resp = client.get("/api/tasks/missing")
     assert resp.status_code == 404
     assert resp.get_json()["code"] == "TASK_NOT_FOUND"
+
+
+def test_stop_unknown_task_404(client):
+    resp = client.post("/api/tasks/missing/stop")
+    assert resp.status_code == 404
+
+
+def test_stop_queued_task_succeeds(client):
+    regions = client.get("/api/regions?env=test").get_json()
+    a_region = next(iter(regions.keys()))
+    tid = client.post("/api/tasks", json=_valid_payload(selected_regions=[a_region])).get_json()["task_id"]
+    resp = client.post(f"/api/tasks/{tid}/stop")
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+
+
+def test_stream_unknown_task_404(client):
+    resp = client.get("/api/tasks/missing/stream")
+    assert resp.status_code == 404
+
+
+def test_stream_for_terminal_task_emits_state_log_end(client, monkeypatch):
+    """构造一个已结束的 task，订阅 stream 应能拿到 state→log→end。"""
+    from web.app import create_app
+    from web.task_manager import Task
+    app, manager = create_app(testing=True)
+    t = Task(task_id="done1", state="succeeded")
+    t.finished_at = 100.0
+    t.append_log({"level": "INFO", "line": "x", "ts": 1.0})
+    # 直接塞进 history（绕过队列）
+    manager._history.append(t)
+    with app.test_client() as c:
+        resp = c.get("/api/tasks/done1/stream")
+        assert resp.status_code == 200
+        body = resp.get_data(as_text=True)
+        assert "event: state" in body
+        assert "event: log" in body
+        assert "event: end" in body
+        assert "succeeded" in body
