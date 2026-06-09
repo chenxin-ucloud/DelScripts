@@ -106,11 +106,115 @@ function renderResources() {
 }
 
 function renderTasks() {
-  // 占位：完整实现在 Task 15
+  renderRunning();
+  renderPending();
+  renderHistory();
   const pendCount = (state.tasks.pending || []).length;
-  $("#pending-count").textContent = `(${pendCount})`;
   $("#queue-badge").textContent = `队列: ${pendCount + (state.tasks.running ? 1 : 0)}`;
+  $("#pending-count").textContent = `(${pendCount})`;
   $("#history-count").textContent = `(${(state.tasks.history || []).length})`;
+}
+
+function statusTag(state_) {
+  return `<span class="status-tag status-${state_}">${state_}</span>`;
+}
+
+function renderRunning() {
+  const root = $("#running-block");
+  const t = state.tasks.running;
+  if (!t) {
+    root.innerHTML = '<p class="empty-hint">暂无运行中的任务</p>';
+    return;
+  }
+  root.innerHTML = `
+    <div class="task-card" data-task="${t.task_id}">
+      <div class="meta">
+        ${statusTag(t.state)} <code>${t.task_id}</code> · ${t.selected_regions.length} 区域 · ${t.selected_resources.length} 资源
+      </div>
+      <div class="log-panel" id="log-${t.task_id}"></div>
+      <div class="actions">
+        <label><input type="checkbox" id="autoscroll-${t.task_id}" checked /> 自动滚动</label>
+        <button class="btn btn-secondary" data-action="clear" data-task="${t.task_id}">清空显示</button>
+        <button class="btn btn-danger" data-action="stop" data-task="${t.task_id}">停止</button>
+      </div>
+    </div>`;
+  // 确保已订阅 SSE
+  ensureSubscribed(t.task_id);
+}
+
+function renderPending() {
+  const root = $("#pending-list");
+  if (!state.tasks.pending.length) { root.innerHTML = '<p class="empty-hint">无</p>'; return; }
+  root.innerHTML = state.tasks.pending.map((t, i) => `
+    <div class="task-card">
+      <div class="meta">
+        ${statusTag(t.state)} <code>${t.task_id}</code> · 位置 ${i + (state.tasks.running ? 1 : 0)}
+      </div>
+      <div class="actions">
+        <button class="btn btn-danger" data-action="stop" data-task="${t.task_id}">取消</button>
+      </div>
+    </div>`).join("");
+}
+
+function renderHistory() {
+  const root = $("#history-list");
+  if (!state.tasks.history.length) { root.innerHTML = '<p class="empty-hint">无</p>'; return; }
+  root.innerHTML = state.tasks.history.slice().reverse().map(t => `
+    <div class="task-card">
+      <div class="meta">
+        ${statusTag(t.state)} <code>${t.task_id}</code> · ${new Date(t.finished_at * 1000).toLocaleString()}
+      </div>
+    </div>`).join("");
+}
+
+// ---------- 事件委托 ----------
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn) return;
+  const taskId = btn.dataset.task;
+  if (btn.dataset.action === "stop") {
+    try {
+      await api(`/api/tasks/${taskId}/stop`, { method: "POST" });
+      await loadSnapshot();
+    } catch (err) {
+      alert(err.message);
+    }
+  } else if (btn.dataset.action === "clear") {
+    const pane = $(`#log-${taskId}`);
+    if (pane) pane.innerHTML = "";
+  }
+});
+
+// ---------- SSE ----------
+function ensureSubscribed(taskId) {
+  if (state.subscriptions[taskId]) return;
+  const es = new EventSource(`/api/tasks/${taskId}/stream`);
+  state.subscriptions[taskId] = es;
+
+  es.addEventListener("log", (ev) => appendLog(taskId, JSON.parse(ev.data)));
+  es.addEventListener("state", (ev) => {
+    const data = JSON.parse(ev.data);
+    console.log(`[${taskId}] state →`, data);
+  });
+  es.addEventListener("end", async () => {
+    es.close();
+    delete state.subscriptions[taskId];
+    await loadSnapshot();
+  });
+  es.addEventListener("heartbeat", () => { /* noop */ });
+  es.onerror = () => console.warn(`SSE error for ${taskId}; 浏览器将自动重连`);
+}
+
+function appendLog(taskId, item) {
+  const pane = $(`#log-${taskId}`);
+  if (!pane) return;
+  const div = document.createElement("div");
+  div.className = `line ${item.level || "INFO"}`;
+  const ts = new Date((item.ts || 0) * 1000).toLocaleTimeString();
+  div.textContent = `${ts} [${item.level}] ${item.line}`;
+  pane.appendChild(div);
+  const auto = $(`#autoscroll-${taskId}`);
+  if (auto && auto.checked) pane.scrollTop = pane.scrollHeight;
 }
 
 // ---------- 表单 ----------
@@ -145,7 +249,6 @@ async function onSubmit() {
     selected_resources: [...state.selectedResources],
     api_url: state.config.api_url.trim(),
   };
-  // 前端粗校验
   if (!payload.public_key) return err.textContent = "请填公钥";
   if (!payload.private_key) return err.textContent = "请填私钥";
   if (!payload.project_ids.length) return err.textContent = "请填项目 ID";
@@ -158,8 +261,7 @@ async function onSubmit() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
     });
-    console.log("submitted:", res);
-    // TODO Task 15: 订阅 SSE
+    ensureSubscribed(res.task_id);
     await loadSnapshot();
   } catch (e) {
     err.textContent = e.message;
@@ -171,6 +273,7 @@ async function main() {
   loadConfig();
   bindForm();
   await Promise.all([loadRegions(), loadResources(), loadSnapshot()]);
+  if (state.tasks.running) ensureSubscribed(state.tasks.running.task_id);
 }
 
 main();
