@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>UCloud Cleaner Web</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>UCloud Cleaner</h1>
+    <span class="queue-badge" id="queue-badge">队列: 0</span>
+  </header>
+  <main class="layout">
+    <section class="panel form-panel">
+      <h2>任务配置</h2>
+      <label>环境
+        <select id="env-select">
+          <option value="prod">正式环境</option>
+          <option value="test">测试环境</option>
+        </select>
+      </label>
+      <label>公钥<input id="public-key" type="text" autocomplete="off" /></label>
+      <label>私钥
+        <input id="private-key" type="password" autocomplete="off" />
+      </label>
+      <label>项目 ID（逗号分隔）<input id="project-ids" type="text" /></label>
+      <label>自定义 API URL（可选）<input id="api-url" type="text" placeholder="默认留空" /></label>
+
+      <fieldset>
+        <legend>区域</legend>
+        <div id="regions" class="checkbox-grid"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>资源类型</legend>
+        <div id="resources" class="checkbox-grid"></div>
+      </fieldset>
+
+      <button id="submit-btn" class="btn btn-primary">开始清理</button>
+      <p id="submit-error" class="error-text"></p>
+    </section>
+
+    <section class="panel runtime-panel">
+      <h2>运行中</h2>
+      <div id="running-block">
+        <p class="empty-hint">暂无运行中的任务</p>
+      </div>
+
+      <h2>排队中 <span id="pending-count">(0)</span></h2>
+      <div id="pending-list"></div>
+
+      <h2>历史 <span id="history-count">(0)</span></h2>
+      <div id="history-list"></div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
