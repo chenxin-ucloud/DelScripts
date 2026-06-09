@@ -3,6 +3,27 @@ import threading
 import pytest
 
 from sdk import runner_core
+from sdk.runner_core import TEST_API_URL, resolve_api_url
+
+
+def test_resolve_api_url_explicit_wins():
+    assert resolve_api_url("测试环境", "http://custom.url") == "http://custom.url"
+    assert resolve_api_url("正式环境", "http://custom.url") == "http://custom.url"
+
+
+def test_resolve_api_url_test_env_defaults_to_test_endpoint():
+    assert resolve_api_url("测试环境", "") == TEST_API_URL
+    assert resolve_api_url("测试环境", "   ") == TEST_API_URL
+    assert resolve_api_url("测试环境", None) == TEST_API_URL
+
+
+def test_resolve_api_url_prod_env_empty_stays_empty():
+    assert resolve_api_url("正式环境", "") == ""
+    assert resolve_api_url("正式环境", None) == ""
+
+
+def test_resolve_api_url_strips_whitespace():
+    assert resolve_api_url("正式环境", "  http://x.com  ") == "http://x.com"
 
 
 class FakeClient:

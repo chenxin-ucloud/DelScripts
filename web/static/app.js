@@ -1,5 +1,7 @@
 "use strict";
 
+const TEST_API_URL = "http://api-test03.ucloudadmin.com";
+
 const state = {
   config: { env: "prod", public_key: "", private_key: "", project_ids: "", api_url: "" },
   regions: {},
@@ -227,6 +229,11 @@ function bindForm() {
   $("#env-select").addEventListener("change", async (e) => {
     state.config.env = e.target.value;
     state.selectedRegions = new Set();
+    // 测试环境：若用户未填 api_url，自动填入测试 endpoint（可见可改）
+    if (state.config.env === "test" && !state.config.api_url.trim()) {
+      state.config.api_url = TEST_API_URL;
+      $("#api-url").value = TEST_API_URL;
+    }
     saveConfig();
     await loadRegions();
   });

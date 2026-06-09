@@ -36,7 +36,7 @@ def run_deletion(state: AppState, log_queue: queue.Queue,
 
         try:
             import delete_all_resources as dar
-            from sdk.runner_core import run_deletion_core
+            from sdk.runner_core import resolve_api_url, run_deletion_core
         except ImportError as e:
             log_queue.put(f"[ERROR] 无法加载删除脚本: {e}")
             return
@@ -74,12 +74,13 @@ def run_deletion(state: AppState, log_queue: queue.Queue,
                 else:
                     log_queue.put(str(item))
 
+        effective_api_url = resolve_api_url(state.env_name, state.api_url)
         run_deletion_core(
             regions=all_regions,
             project_ids=project_ids,
             public_key=state.public_key,
             private_key=state.private_key,
-            api_url=state.api_url,
+            api_url=effective_api_url,
             selected_regions=state.selected_regions,
             selected_resources=state.selected_resources,
             log_sink=_DictToStringSink(),

@@ -8,6 +8,18 @@ from typing import Iterable, List, Optional
 from sdk.delete_all_resources import DELETE_OPERATIONS, get_client
 
 
+TEST_API_URL = "http://api-test03.ucloudadmin.com"
+
+
+def resolve_api_url(env_name: str, explicit: str) -> str:
+    """根据环境名解析 base_url：用户显式指定优先，测试环境默认走测试 endpoint。"""
+    if explicit and explicit.strip():
+        return explicit.strip()
+    if env_name == "测试环境":
+        return TEST_API_URL
+    return ""
+
+
 def _log(sink, level: str, line: str):
     sink.put({"level": level, "line": line, "ts": time.time()})
 

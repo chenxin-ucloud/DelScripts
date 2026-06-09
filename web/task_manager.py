@@ -7,7 +7,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from sdk.runner_core import run_deletion_core
+from sdk.runner_core import resolve_api_url, run_deletion_core
 
 
 _ASSETS_DIR = os.path.join(
@@ -115,12 +115,13 @@ class TaskManager:
                 task.started_at = time.time()
             try:
                 regions = _load_regions_for_env(task.env_name)
+                effective_api_url = resolve_api_url(task.env_name, task.api_url)
                 run_deletion_core(
                     regions=regions,
                     project_ids=task.project_ids,
                     public_key=task.public_key,
                     private_key=task.private_key,
-                    api_url=task.api_url,
+                    api_url=effective_api_url,
                     selected_regions=task.selected_regions,
                     selected_resources=task.selected_resources,
                     log_sink=task,
