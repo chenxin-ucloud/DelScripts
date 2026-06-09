@@ -11,6 +11,7 @@ a = Analysis(
         ('gui/assets/region.json', 'assets'),
         ('gui/assets/region_test.json', 'assets'),
         ('sdk/delete_all_resources.py', 'sdk'),
+        ('sdk/runner_core.py', 'sdk'),
     ],
     hiddenimports=[
         'ucloud',

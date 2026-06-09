@@ -42,7 +42,8 @@ def run_deletion(state: AppState, log_queue: queue.Queue,
             return
 
         # 把 SDK 自己 logger 的输出转到队列（保留原有日志）
-        sdk_logger = logging.getLogger(dar.__name__)
+        # Critical: runner_core imports from "sdk.delete_all_resources", not bare "delete_all_resources"
+        sdk_logger = logging.getLogger("sdk.delete_all_resources")
         sdk_logger.handlers.clear()
         sdk_logger.setLevel(logging.INFO)
         handler = QueueHandler(log_queue)
