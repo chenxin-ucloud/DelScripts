@@ -74,6 +74,32 @@ def get_client(region, project_id, public_key, private_key, base_url=None):
     return Client(config)
 
 
+def fetch_project_list(public_key, private_key, base_url=None):
+    """获取项目列表，返回 {project_id: project_name} 映射。
+
+    供 Web/GUI 在填写公钥私钥后自动拉取项目，供用户选择。
+    调用失败时返回空字典并记录 ERROR 日志。
+    """
+    config = {
+        "public_key": public_key,
+        "private_key": private_key,
+    }
+    if base_url:
+        config["base_url"] = base_url
+    try:
+        client = Client(config)
+        resp = client.uaccount().get_project_list()
+        projects = resp.get("ProjectSet", [])
+        return {
+            p["ProjectId"]: p.get("ProjectName", p["ProjectId"])
+            for p in projects
+            if "ProjectId" in p
+        }
+    except Exception as e:
+        logger.error(f"获取项目列表失败: {e}")
+        return {}
+
+
 def _interruptible_sleep(seconds, stop_event=None):
     """分段 sleep，每 0.5 秒检查一次停止信号；stop_event 为 None 时退化为普通 sleep"""
     if stop_event is None:

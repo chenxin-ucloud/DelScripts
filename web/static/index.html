@@ -23,13 +23,25 @@
       <label>私钥
         <input id="private-key" type="password" autocomplete="off" />
       </label>
-      <label>项目 ID（逗号分隔）<input id="project-ids" type="text" /></label>
+      <div style="margin-bottom: 10px;">
+        <button class="btn btn-sm btn-secondary" id="fetch-projects">获取项目</button>
+        <span id="projects-msg" class="error-text" style="margin-left: 8px; display: inline;"></span>
+      </div>
+
+      <fieldset>
+        <legend>项目</legend>
+        <div class="select-bar">
+          <button class="btn btn-sm btn-secondary" data-action="select-all" data-target="projects">全选</button>
+          <button class="btn btn-sm btn-secondary" data-action="select-none" data-target="projects">取消选择</button>
+        </div>
+        <div id="projects" class="checkbox-grid"></div>
+      </fieldset>
 
       <fieldset>
         <legend>区域</legend>
         <div class="select-bar">
           <button class="btn btn-sm btn-secondary" data-action="select-all" data-target="regions">全选</button>
-          <button class="btn btn-sm btn-secondary" data-action="select-none" data-target="regions">取消全选</button>
+          <button class="btn btn-sm btn-secondary" data-action="select-none" data-target="regions">取消选择</button>
         </div>
         <div id="regions" class="checkbox-grid"></div>
       </fieldset>
@@ -38,7 +50,7 @@
         <legend>资源类型</legend>
         <div class="select-bar">
           <button class="btn btn-sm btn-secondary" data-action="select-all" data-target="resources">全选</button>
-          <button class="btn btn-sm btn-secondary" data-action="select-none" data-target="resources">取消全选</button>
+          <button class="btn btn-sm btn-secondary" data-action="select-none" data-target="resources">取消选择</button>
         </div>
         <div id="resources" class="checkbox-grid"></div>
       </fieldset>
@@ -56,7 +68,7 @@
           <span class="log-count" id="log-count">0 条</span>
           <div class="log-header-actions">
             <label><input type="checkbox" id="autoscroll" checked /> 自动滚动</label>
-            <button class="btn btn-secondary btn-sm" id="clear-logs">清空显示</button>
+            <button class="btn btn-secondary btn-sm" id="clear-logs">清空日志</button>
           </div>
         </div>
         <div class="log-panel" id="log-panel"></div>

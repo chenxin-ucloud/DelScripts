@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 
 from flask import Flask, Response, jsonify, request, send_from_directory
 
-from sdk.delete_all_resources import DELETE_OPERATIONS
+from sdk.delete_all_resources import DELETE_OPERATIONS, fetch_project_list
 from web.sse import stream_events
 from web.task_manager import Task, TaskManager, _load_regions_for_env
 
@@ -42,6 +42,21 @@ def create_app(testing: bool = False) -> Tuple[Flask, TaskManager]:
     @app.route("/api/snapshot")
     def get_snapshot():
         return jsonify(manager.snapshot())
+
+    @app.route("/api/projects", methods=["POST"])
+    def get_projects():
+        payload = request.get_json(silent=True) or {}
+        public_key = payload.get("public_key", "").strip()
+        private_key = payload.get("private_key", "").strip()
+        env_name = payload.get("env_name", "正式环境")
+        if not public_key:
+            return _err("INVALID_PARAM", 400, "public_key 不能为空")
+        if not private_key:
+            return _err("INVALID_PARAM", 400, "private_key 不能为空")
+        from sdk.runner_core import resolve_api_url
+        base_url = resolve_api_url(env_name, "")
+        projects = fetch_project_list(public_key, private_key, base_url=base_url or None)
+        return jsonify(projects=projects)
 
     VALID_ENVS = {"正式环境", "测试环境"}
     VALID_RESOURCE_NAMES = {name for name, _ in DELETE_OPERATIONS}
@@ -85,10 +100,12 @@ def create_app(testing: bool = False) -> Tuple[Flask, TaskManager]:
         err = _validate_payload(payload)
         if err:
             return _err("INVALID_PARAM", 400, err)
+        from sdk.runner_core import resolve_api_url
+        api_url = resolve_api_url(payload["env_name"], "")
         task = Task(
             task_id=uuid.uuid4().hex[:8],
             env_name=payload["env_name"],
-            api_url=payload.get("api_url", "") or "",
+            api_url=api_url,
             public_key=payload["public_key"],
             private_key=payload["private_key"],
             project_ids=[p.strip() for p in payload["project_ids"]],

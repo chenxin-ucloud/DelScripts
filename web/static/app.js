@@ -1,7 +1,9 @@
 "use strict";
 
 const state = {
-  config: { env: "prod", public_key: "", private_key: "", project_ids: "" },
+  config: { env: "prod", public_key: "", private_key: "" },
+  projects: {},          // {project_id: project_name}
+  selectedProjects: new Set(),
   regions: {},
   resources: [],
   selectedRegions: new Set(),
@@ -21,7 +23,7 @@ function saveConfig() {
   const data = {
     env: state.config.env,
     public_key: state.config.public_key,
-    project_ids: state.config.project_ids,
+    selectedProjects: [...state.selectedProjects],
     selectedRegions: [...state.selectedRegions],
     selectedResources: [...state.selectedResources],
     // 私钥不持久化
@@ -36,7 +38,7 @@ function loadConfig() {
     const data = JSON.parse(raw);
     if (data.env) state.config.env = data.env;
     state.config.public_key = data.public_key || "";
-    state.config.project_ids = data.project_ids || "";
+    state.selectedProjects = new Set(data.selectedProjects || []);
     state.selectedRegions = new Set(data.selectedRegions || []);
     state.selectedResources = new Set(data.selectedResources || []);
   } catch (e) {
@@ -69,7 +71,60 @@ async function loadSnapshot() {
   renderTasks();
 }
 
+async function fetchProjects() {
+  const msg = $("#projects-msg");
+  msg.textContent = "加载中...";
+  try {
+    const body = await api("/api/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        public_key: state.config.public_key.trim(),
+        private_key: state.config.private_key,
+        env_name: state.config.env === "test" ? "测试环境" : "正式环境",
+      }),
+    });
+    state.projects = body.projects || {};
+    // 自动保留之前已选且仍存在的项目
+    const valid = new Set();
+    for (const pid of state.selectedProjects) {
+      if (pid in state.projects) valid.add(pid);
+    }
+    state.selectedProjects = valid;
+    renderProjects();
+    msg.textContent = Object.keys(state.projects).length
+      ? `已加载 ${Object.keys(state.projects).length} 个项目`
+      : "未获取到项目（请检查密钥）";
+  } catch (e) {
+    msg.textContent = e.message;
+  }
+}
+
 // ---------- 渲染 ----------
+function renderProjects() {
+  const root = $("#projects");
+  root.innerHTML = "";
+  const ids = Object.keys(state.projects);
+  if (!ids.length) {
+    root.innerHTML = '<p class="empty-hint">请先点击「获取项目」</p>';
+    return;
+  }
+  for (const pid of ids) {
+    const name = state.projects[pid];
+    const label = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = state.selectedProjects.has(pid);
+    cb.addEventListener("change", () => {
+      cb.checked ? state.selectedProjects.add(pid) : state.selectedProjects.delete(pid);
+      saveConfig();
+    });
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(`${name} (${pid})`));
+    root.appendChild(label);
+  }
+}
+
 function renderRegions() {
   const root = $("#regions");
   root.innerHTML = "";
@@ -223,6 +278,10 @@ document.addEventListener("click", async (e) => {
       state.selectedResources = checked ? new Set(state.resources) : new Set();
       saveConfig();
       renderResources();
+    } else if (target === "projects") {
+      state.selectedProjects = checked ? new Set(Object.keys(state.projects)) : new Set();
+      saveConfig();
+      renderProjects();
     }
   }
 });
@@ -266,17 +325,19 @@ function appendLog(taskId, item) {
 function bindForm() {
   $("#env-select").value = state.config.env;
   $("#public-key").value = state.config.public_key;
-  $("#project-ids").value = state.config.project_ids;
 
   $("#env-select").addEventListener("change", async (e) => {
     state.config.env = e.target.value;
     state.selectedRegions = new Set();
+    state.projects = {};
+    state.selectedProjects = new Set();
+    renderProjects();
     saveConfig();
     await loadRegions();
   });
   $("#public-key").addEventListener("input", (e) => { state.config.public_key = e.target.value; saveConfig(); });
   $("#private-key").addEventListener("input", (e) => { state.config.private_key = e.target.value; /* 不存 */ });
-  $("#project-ids").addEventListener("input", (e) => { state.config.project_ids = e.target.value; saveConfig(); });
+  $("#fetch-projects").addEventListener("click", fetchProjects);
 
   $("#submit-btn").addEventListener("click", onSubmit);
 }
@@ -287,13 +348,13 @@ async function onSubmit() {
     env_name: state.config.env === "test" ? "测试环境" : "正式环境",
     public_key: state.config.public_key.trim(),
     private_key: state.config.private_key,
-    project_ids: state.config.project_ids.split(",").map(s => s.trim()).filter(Boolean),
+    project_ids: [...state.selectedProjects],
     selected_regions: [...state.selectedRegions],
     selected_resources: [...state.selectedResources],
   };
   if (!payload.public_key) return err.textContent = "请填公钥";
   if (!payload.private_key) return err.textContent = "请填私钥";
-  if (!payload.project_ids.length) return err.textContent = "请填项目 ID";
+  if (!payload.project_ids.length) return err.textContent = "请至少选择 1 个项目";
   if (!payload.selected_regions.length) return err.textContent = "请至少勾选 1 个区域";
   if (!payload.selected_resources.length) return err.textContent = "请至少勾选 1 个资源类型";
 
