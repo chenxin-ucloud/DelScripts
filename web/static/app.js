@@ -10,8 +10,8 @@ const state = {
   selectedResources: new Set(),
   tasks: { running: null, pending: [], history: [] },
   subscriptions: {},
-  logCollapsed: {},   // task_id -> bool；默认展开
-  logCounts: {},      // task_id -> 累计日志行数（前端显示）
+  currentLogTaskId: null, // 当前日志面板绑定到哪个任务
+  logCount: 0,
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -123,6 +123,19 @@ function statusTag(state_) {
   return `<span class="status-tag status-${state_}">${state_}</span>`;
 }
 
+function updateLogBadge() {
+  const badge = $("#log-count");
+  if (badge) badge.textContent = `${state.logCount} 条`;
+}
+
+function resetLogPanel(taskId) {
+  const panel = $("#log-panel");
+  if (panel) panel.innerHTML = "";
+  state.currentLogTaskId = taskId;
+  state.logCount = 0;
+  updateLogBadge();
+}
+
 function renderRunning() {
   const root = $("#running-block");
   const t = state.tasks.running;
@@ -130,30 +143,19 @@ function renderRunning() {
     root.innerHTML = '<p class="empty-hint">暂无运行中的任务</p>';
     return;
   }
-  const collapsed = !!state.logCollapsed[t.task_id];
-  const count = state.logCounts[t.task_id] || 0;
+  // 新任务开始：重置日志面板（常驻面板跟随当前 running 任务）
+  if (state.currentLogTaskId !== t.task_id) {
+    resetLogPanel(t.task_id);
+  }
   root.innerHTML = `
     <div class="task-card" data-task="${t.task_id}">
       <div class="meta">
         ${statusTag(t.state)} <code>${t.task_id}</code> · ${t.selected_regions.length} 区域 · ${t.selected_resources.length} 资源
       </div>
-      <div class="log-section ${collapsed ? "collapsed" : ""}" data-task="${t.task_id}">
-        <div class="log-header" data-action="toggle" data-task="${t.task_id}">
-          <span class="log-caret">${collapsed ? "▸" : "▾"}</span>
-          <span class="log-title">实时日志</span>
-          <span class="log-count" id="log-count-${t.task_id}">${count} 条</span>
-          <div class="log-header-actions" data-stop-propagation>
-            <label><input type="checkbox" id="autoscroll-${t.task_id}" checked /> 自动滚动</label>
-            <button class="btn btn-secondary btn-sm" data-action="clear" data-task="${t.task_id}">清空显示</button>
-          </div>
-        </div>
-        <div class="log-panel" id="log-${t.task_id}"></div>
-      </div>
       <div class="actions">
         <button class="btn btn-danger" data-action="stop" data-task="${t.task_id}">停止</button>
       </div>
     </div>`;
-  // 确保已订阅 SSE
   ensureSubscribed(t.task_id);
 }
 
@@ -182,22 +184,24 @@ function renderHistory() {
     </div>`).join("");
 }
 
-// ---------- 事件委托 ----------
+// ---------- 事件：全局日志面板 ----------
+$("#log-header").addEventListener("click", (e) => {
+  if (e.target.closest(".log-header-actions")) return;
+  const section = $("#log-section");
+  section.classList.toggle("collapsed");
+  const caret = $("#log-caret");
+  if (caret) caret.textContent = section.classList.contains("collapsed") ? "▸" : "▾";
+});
+
+$("#clear-logs").addEventListener("click", () => {
+  const pane = $("#log-panel");
+  if (pane) pane.innerHTML = "";
+  state.logCount = 0;
+  updateLogBadge();
+});
+
+// ---------- 事件委托：任务操作 ----------
 document.addEventListener("click", async (e) => {
-  // 折叠头点击：展开/收起日志面板
-  const header = e.target.closest("[data-action='toggle']");
-  if (header && !e.target.closest("[data-stop-propagation]")) {
-    const taskId = header.dataset.task;
-    const section = header.closest(".log-section");
-    if (section) {
-      section.classList.toggle("collapsed");
-      const collapsed = section.classList.contains("collapsed");
-      state.logCollapsed[taskId] = collapsed;
-      const caret = section.querySelector(".log-caret");
-      if (caret) caret.textContent = collapsed ? "▸" : "▾";
-    }
-    return;
-  }
   const btn = e.target.closest("button[data-action]");
   if (!btn) return;
   const taskId = btn.dataset.task;
@@ -208,12 +212,6 @@ document.addEventListener("click", async (e) => {
     } catch (err) {
       alert(err.message);
     }
-  } else if (btn.dataset.action === "clear") {
-    const pane = $(`#log-${taskId}`);
-    if (pane) pane.innerHTML = "";
-    state.logCounts[taskId] = 0;
-    const badge = $(`#log-count-${taskId}`);
-    if (badge) badge.textContent = "0 条";
   }
 });
 
@@ -238,19 +236,18 @@ function ensureSubscribed(taskId) {
 }
 
 function appendLog(taskId, item) {
-  const pane = $(`#log-${taskId}`);
+  // 常驻面板只显示当前 running 任务的日志
+  if (taskId !== state.currentLogTaskId) return;
+  const pane = $("#log-panel");
   if (!pane) return;
   const div = document.createElement("div");
   div.className = `line ${item.level || "INFO"}`;
   const ts = new Date((item.ts || 0) * 1000).toLocaleTimeString();
   div.textContent = `${ts} [${item.level}] ${item.line}`;
   pane.appendChild(div);
-  // 累计行数 + 徽章
-  state.logCounts[taskId] = (state.logCounts[taskId] || 0) + 1;
-  const badge = $(`#log-count-${taskId}`);
-  if (badge) badge.textContent = `${state.logCounts[taskId]} 条`;
-  // 自动滚动（即使折叠也保持滚动位置在末尾，展开时立刻看到最新）
-  const auto = $(`#autoscroll-${taskId}`);
+  state.logCount += 1;
+  updateLogBadge();
+  const auto = $("#autoscroll");
   if (auto && auto.checked) pane.scrollTop = pane.scrollHeight;
 }
 
