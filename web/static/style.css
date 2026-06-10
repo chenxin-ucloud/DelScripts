@@ -68,6 +68,61 @@ legend { font-size: 12px; color: #4B5563; padding: 0 4px; }
 .log-panel .line.ERROR { color: #F87171; }
 .log-panel .line.WARNING { color: #FBBF24; }
 
+/* 可折叠日志区 */
+.log-section {
+  margin: 8px 0;
+  border: 1px solid #E5E7EB;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+}
+.log-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px;
+  background: #F3F4F6;
+  cursor: pointer;
+  font-size: 12px;
+  color: #374151;
+  user-select: none;
+  border-bottom: 1px solid #E5E7EB;
+}
+.log-header:hover { background: #E5E7EB; }
+.log-section.collapsed .log-header { border-bottom: 0; }
+.log-caret {
+  display: inline-block;
+  width: 10px; text-align: center;
+  font-size: 10px; color: #6B7280;
+}
+.log-title { font-weight: 500; }
+.log-count {
+  background: #E5E7EB; color: #4B5563;
+  padding: 1px 8px; border-radius: 999px; font-size: 11px;
+}
+.log-header-actions {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 8px;
+  cursor: default;
+}
+.log-header-actions label {
+  margin: 0; display: flex; align-items: center; gap: 4px;
+  font-size: 11px; color: #4B5563; cursor: pointer;
+}
+.log-header-actions label input { width: auto; margin: 0; }
+.btn-sm { padding: 3px 8px; font-size: 11px; }
+
+.log-section .log-panel {
+  border-radius: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  transition: max-height 0.15s ease;
+}
+.log-section.collapsed .log-panel {
+  max-height: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+}
+
 .empty-hint { color: #9CA3AF; font-size: 12px; }
 
 .status-tag {
