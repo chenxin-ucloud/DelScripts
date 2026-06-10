@@ -75,10 +75,12 @@ def get_client(region, project_id, public_key, private_key, base_url=None):
 
 
 def fetch_project_list(public_key, private_key, base_url=None):
-    """获取项目列表，返回按 CreateTime 升序排列的 {project_id: {name, create_time}} 映射。
+    """获取项目列表，返回按 CreateTime 升序排列的项目列表。
 
     供 Web/GUI 在填写公钥私钥后自动拉取项目，供用户选择。
-    调用失败时返回空字典并记录 ERROR 日志。
+    调用失败时返回空列表并记录 ERROR 日志。
+
+    返回格式: [{"project_id": "...", "name": "...", "create_time": 123}, ...]
     """
     config = {
         "public_key": public_key,
@@ -90,23 +92,24 @@ def fetch_project_list(public_key, private_key, base_url=None):
         client = Client(config)
         resp = client.uaccount().get_project_list()
         projects = resp.get("ProjectSet", [])
-        # 按创建时间升序
+        # 按创建时间升序（最旧的在最前）
         sorted_projects = sorted(
             projects,
-            key=lambda p: p.get("CreateTime", 0),
+            key=lambda p: int(p.get("CreateTime") or 0),
             reverse=False,
         )
-        return {
-            p["ProjectId"]: {
+        return [
+            {
+                "project_id": p["ProjectId"],
                 "name": p.get("ProjectName", p["ProjectId"]),
                 "create_time": p.get("CreateTime"),
             }
             for p in sorted_projects
             if "ProjectId" in p
-        }
+        ]
     except Exception as e:
         logger.error(f"获取项目列表失败: {e}")
-        return {}
+        return []
 
 
 def _interruptible_sleep(seconds, stop_event=None):

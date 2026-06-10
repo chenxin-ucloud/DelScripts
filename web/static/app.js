@@ -2,7 +2,7 @@
 
 const state = {
   config: { env: "prod", public_key: "", private_key: "" },
-  projects: {},          // {project_id: project_name}
+  projects: [],          // [{project_id, name, create_time}, ...]
   selectedProjects: new Set(),
   regions: {},
   resources: [],
@@ -84,16 +84,16 @@ async function fetchProjects() {
         env_name: state.config.env === "test" ? "测试环境" : "正式环境",
       }),
     });
-    state.projects = body.projects || {};
+    state.projects = body.projects || [];
     // 自动保留之前已选且仍存在的项目
     const valid = new Set();
     for (const pid of state.selectedProjects) {
-      if (pid in state.projects) valid.add(pid);
+      if (state.projects.some((p) => p.project_id === pid)) valid.add(pid);
     }
     state.selectedProjects = valid;
     renderProjects();
-    msg.textContent = Object.keys(state.projects).length
-      ? `已加载 ${Object.keys(state.projects).length} 个项目`
+    msg.textContent = state.projects.length
+      ? `已加载 ${state.projects.length} 个项目`
       : "未获取到项目（请检查密钥）";
   } catch (e) {
     msg.textContent = e.message;
@@ -104,23 +104,21 @@ async function fetchProjects() {
 function renderProjects() {
   const root = $("#projects");
   root.innerHTML = "";
-  const ids = Object.keys(state.projects);
-  if (!ids.length) {
+  if (!state.projects.length) {
     root.innerHTML = '<p class="empty-hint">请先点击「获取项目」</p>';
     return;
   }
-  for (const pid of ids) {
-    const info = state.projects[pid];
+  for (const p of state.projects) {
     const label = document.createElement("label");
     const cb = document.createElement("input");
     cb.type = "checkbox";
-    cb.checked = state.selectedProjects.has(pid);
+    cb.checked = state.selectedProjects.has(p.project_id);
     cb.addEventListener("change", () => {
-      cb.checked ? state.selectedProjects.add(pid) : state.selectedProjects.delete(pid);
+      cb.checked ? state.selectedProjects.add(p.project_id) : state.selectedProjects.delete(p.project_id);
       saveConfig();
     });
     label.appendChild(cb);
-    label.appendChild(document.createTextNode(`${info.name} (${pid})`));
+    label.appendChild(document.createTextNode(`${p.name} (${p.project_id})`));
     root.appendChild(label);
   }
 }
@@ -279,7 +277,7 @@ document.addEventListener("click", async (e) => {
       saveConfig();
       renderResources();
     } else if (target === "projects") {
-      state.selectedProjects = checked ? new Set(Object.keys(state.projects)) : new Set();
+      state.selectedProjects = checked ? new Set(state.projects.map((p) => p.project_id)) : new Set();
       saveConfig();
       renderProjects();
     }
@@ -329,7 +327,7 @@ function bindForm() {
   $("#env-select").addEventListener("change", async (e) => {
     state.config.env = e.target.value;
     state.selectedRegions = new Set();
-    state.projects = {};
+    state.projects = [];
     state.selectedProjects = new Set();
     renderProjects();
     $("#projects-msg").textContent = "";
