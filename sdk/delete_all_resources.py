@@ -75,7 +75,7 @@ def get_client(region, project_id, public_key, private_key, base_url=None):
 
 
 def fetch_project_list(public_key, private_key, base_url=None):
-    """获取项目列表，返回 {project_id: project_name} 映射。
+    """获取项目列表，返回按 CreateTime 降序排列的 {project_id: project_name} 映射。
 
     供 Web/GUI 在填写公钥私钥后自动拉取项目，供用户选择。
     调用失败时返回空字典并记录 ERROR 日志。
@@ -90,9 +90,15 @@ def fetch_project_list(public_key, private_key, base_url=None):
         client = Client(config)
         resp = client.uaccount().get_project_list()
         projects = resp.get("ProjectSet", [])
+        # 按创建时间降序（最新的排在最前）
+        sorted_projects = sorted(
+            projects,
+            key=lambda p: p.get("CreateTime", 0),
+            reverse=True,
+        )
         return {
             p["ProjectId"]: p.get("ProjectName", p["ProjectId"])
-            for p in projects
+            for p in sorted_projects
             if "ProjectId" in p
         }
     except Exception as e:
