@@ -1,16 +1,14 @@
 "use strict";
 
-const TEST_API_URL = "http://api-test03.ucloudadmin.com";
-
 const state = {
-  config: { env: "prod", public_key: "", private_key: "", project_ids: "", api_url: "" },
+  config: { env: "prod", public_key: "", private_key: "", project_ids: "" },
   regions: {},
   resources: [],
   selectedRegions: new Set(),
   selectedResources: new Set(),
   tasks: { running: null, pending: [], history: [] },
   subscriptions: {},
-  currentLogTaskId: null, // 当前日志面板绑定到哪个任务
+  currentLogTaskId: null,
   logCount: 0,
 };
 
@@ -24,7 +22,6 @@ function saveConfig() {
     env: state.config.env,
     public_key: state.config.public_key,
     project_ids: state.config.project_ids,
-    api_url: state.config.api_url,
     selectedRegions: [...state.selectedRegions],
     selectedResources: [...state.selectedResources],
     // 私钥不持久化
@@ -40,7 +37,6 @@ function loadConfig() {
     if (data.env) state.config.env = data.env;
     state.config.public_key = data.public_key || "";
     state.config.project_ids = data.project_ids || "";
-    state.config.api_url = data.api_url || "";
     state.selectedRegions = new Set(data.selectedRegions || []);
     state.selectedResources = new Set(data.selectedResources || []);
   } catch (e) {
@@ -143,7 +139,6 @@ function renderRunning() {
     root.innerHTML = '<p class="empty-hint">暂无运行中的任务</p>';
     return;
   }
-  // 新任务开始：重置日志面板（常驻面板跟随当前 running 任务）
   if (state.currentLogTaskId !== t.task_id) {
     resetLogPanel(t.task_id);
   }
@@ -200,17 +195,34 @@ $("#clear-logs").addEventListener("click", () => {
   updateLogBadge();
 });
 
-// ---------- 事件委托：任务操作 ----------
+// ---------- 事件委托 ----------
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-action]");
   if (!btn) return;
-  const taskId = btn.dataset.task;
-  if (btn.dataset.action === "stop") {
+  const action = btn.dataset.action;
+
+  if (action === "stop") {
+    const taskId = btn.dataset.task;
     try {
       await api(`/api/tasks/${taskId}/stop`, { method: "POST" });
       await loadSnapshot();
     } catch (err) {
       alert(err.message);
+    }
+    return;
+  }
+
+  if (action === "select-all" || action === "select-none") {
+    const target = btn.dataset.target;
+    const checked = action === "select-all";
+    if (target === "regions") {
+      state.selectedRegions = checked ? new Set(Object.keys(state.regions)) : new Set();
+      saveConfig();
+      renderRegions();
+    } else if (target === "resources") {
+      state.selectedResources = checked ? new Set(state.resources) : new Set();
+      saveConfig();
+      renderResources();
     }
   }
 });
@@ -236,7 +248,6 @@ function ensureSubscribed(taskId) {
 }
 
 function appendLog(taskId, item) {
-  // 常驻面板只显示当前 running 任务的日志
   if (taskId !== state.currentLogTaskId) return;
   const pane = $("#log-panel");
   if (!pane) return;
@@ -256,23 +267,16 @@ function bindForm() {
   $("#env-select").value = state.config.env;
   $("#public-key").value = state.config.public_key;
   $("#project-ids").value = state.config.project_ids;
-  $("#api-url").value = state.config.api_url;
 
   $("#env-select").addEventListener("change", async (e) => {
     state.config.env = e.target.value;
     state.selectedRegions = new Set();
-    // 测试环境：若用户未填 api_url，自动填入测试 endpoint（可见可改）
-    if (state.config.env === "test" && !state.config.api_url.trim()) {
-      state.config.api_url = TEST_API_URL;
-      $("#api-url").value = TEST_API_URL;
-    }
     saveConfig();
     await loadRegions();
   });
   $("#public-key").addEventListener("input", (e) => { state.config.public_key = e.target.value; saveConfig(); });
   $("#private-key").addEventListener("input", (e) => { state.config.private_key = e.target.value; /* 不存 */ });
   $("#project-ids").addEventListener("input", (e) => { state.config.project_ids = e.target.value; saveConfig(); });
-  $("#api-url").addEventListener("input", (e) => { state.config.api_url = e.target.value; saveConfig(); });
 
   $("#submit-btn").addEventListener("click", onSubmit);
 }
@@ -286,7 +290,6 @@ async function onSubmit() {
     project_ids: state.config.project_ids.split(",").map(s => s.trim()).filter(Boolean),
     selected_regions: [...state.selectedRegions],
     selected_resources: [...state.selectedResources],
-    api_url: state.config.api_url.trim(),
   };
   if (!payload.public_key) return err.textContent = "请填公钥";
   if (!payload.private_key) return err.textContent = "请填私钥";

@@ -24,15 +24,22 @@
         <input id="private-key" type="password" autocomplete="off" />
       </label>
       <label>项目 ID（逗号分隔）<input id="project-ids" type="text" /></label>
-      <label>自定义 API URL（可选）<input id="api-url" type="text" placeholder="默认留空" /></label>
 
       <fieldset>
         <legend>区域</legend>
+        <div class="select-bar">
+          <button class="btn btn-sm btn-secondary" data-action="select-all" data-target="regions">全选</button>
+          <button class="btn btn-sm btn-secondary" data-action="select-none" data-target="regions">取消全选</button>
+        </div>
         <div id="regions" class="checkbox-grid"></div>
       </fieldset>
 
       <fieldset>
         <legend>资源类型</legend>
+        <div class="select-bar">
+          <button class="btn btn-sm btn-secondary" data-action="select-all" data-target="resources">全选</button>
+          <button class="btn btn-sm btn-secondary" data-action="select-none" data-target="resources">取消全选</button>
+        </div>
         <div id="resources" class="checkbox-grid"></div>
       </fieldset>
 
