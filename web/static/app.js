@@ -110,7 +110,7 @@ function renderProjects() {
     return;
   }
   for (const pid of ids) {
-    const name = state.projects[pid];
+    const info = state.projects[pid];
     const label = document.createElement("label");
     const cb = document.createElement("input");
     cb.type = "checkbox";
@@ -120,7 +120,7 @@ function renderProjects() {
       saveConfig();
     });
     label.appendChild(cb);
-    label.appendChild(document.createTextNode(`${name} (${pid})`));
+    label.appendChild(document.createTextNode(`${info.name} (${pid})`));
     root.appendChild(label);
   }
 }
