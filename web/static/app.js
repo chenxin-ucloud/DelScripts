@@ -332,6 +332,7 @@ function bindForm() {
     state.projects = {};
     state.selectedProjects = new Set();
     renderProjects();
+    $("#projects-msg").textContent = "";
     saveConfig();
     await loadRegions();
   });
