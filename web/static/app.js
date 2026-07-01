@@ -10,6 +10,7 @@ const state = {
   selectedResources: new Set(),
   tasks: { running: null, pending: [], history: [] },
   subscriptions: {},
+  historyCollapsed: {},  // task_id -> bool；默认收起
   currentLogTaskId: null,
   logCount: 0,
 };
@@ -224,12 +225,29 @@ function renderPending() {
 function renderHistory() {
   const root = $("#history-list");
   if (!state.tasks.history.length) { root.innerHTML = '<p class="empty-hint">无</p>'; return; }
-  root.innerHTML = state.tasks.history.slice().reverse().map(t => `
-    <div class="task-card">
+  root.innerHTML = state.tasks.history.slice().reverse().map(t => {
+    const collapsed = !!state.historyCollapsed[t.task_id];
+    const projectLabel = t.project_ids.length === 1
+      ? t.project_ids[0]
+      : `${t.project_ids[0]} 等 ${t.project_ids.length} 个项目`;
+    return `
+    <div class="task-card" data-task="${t.task_id}" data-action="toggle-history">
       <div class="meta">
-        ${statusTag(t.state)} <code>${t.task_id}</code> · ${new Date(t.finished_at * 1000).toLocaleString()}
+        ${statusTag(t.state)} <code>${t.task_id}</code> · ${projectLabel}
+        <span style="float:right;cursor:pointer;" data-action="toggle-history" data-task="${t.task_id}">${collapsed ? '▸' : '▾'}</span>
       </div>
-    </div>`).join("");
+      <div class="details ${collapsed ? 'collapsed' : ''}">
+        <dl>
+          <dt>完成时间</dt><dd>${new Date(t.finished_at * 1000).toLocaleString()}</dd>
+          <dt>环境</dt><dd>${t.env_name}</dd>
+          <dt>项目</dt><dd><div class="tag-list">${t.project_ids.map(p => `<span class="tag">${p}</span>`).join('')}</div></dd>
+          <dt>区域</dt><dd><div class="tag-list">${t.selected_regions.map(r => `<span class="tag">${r}</span>`).join('')}</div></dd>
+          <dt>资源</dt><dd><div class="tag-list">${t.selected_resources.map(r => `<span class="tag">${r}</span>`).join('')}</div></dd>
+          <dt>公钥</dt><dd>${t.public_key}</dd>
+        </dl>
+      </div>
+    </div>`;
+  }).join("");
 }
 
 // ---------- 事件：全局日志面板 ----------
@@ -250,6 +268,21 @@ $("#clear-logs").addEventListener("click", () => {
 
 // ---------- 事件委托 ----------
 document.addEventListener("click", async (e) => {
+  // 历史任务卡片展开/收起
+  const histToggle = e.target.closest("[data-action='toggle-history']");
+  if (histToggle) {
+    const taskId = histToggle.dataset.task;
+    const card = histToggle.closest(".task-card");
+    const details = card?.querySelector(".details");
+    const caret = card?.querySelector("[data-action='toggle-history']");
+    if (details && caret) {
+      const collapsed = details.classList.toggle("collapsed");
+      state.historyCollapsed[taskId] = collapsed;
+      caret.textContent = collapsed ? "▸" : "▾";
+    }
+    return;
+  }
+
   const btn = e.target.closest("button[data-action]");
   if (!btn) return;
   const action = btn.dataset.action;
