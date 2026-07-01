@@ -226,21 +226,29 @@ function renderHistory() {
   const root = $("#history-list");
   if (!state.tasks.history.length) { root.innerHTML = '<p class="empty-hint">无</p>'; return; }
   root.innerHTML = state.tasks.history.slice().reverse().map(t => {
-    const collapsed = !!state.historyCollapsed[t.task_id];
-    const projectLabel = t.project_ids.length === 1
-      ? t.project_ids[0]
-      : `${t.project_ids[0]} 等 ${t.project_ids.length} 个项目`;
+    // 默认收起（state.historyCollapsed[task_id] 默认未设置，未设置即视为收起 true）
+    const collapsed = state.historyCollapsed[t.task_id] !== false;
+    // 标题栏：状态 + 项目名称(项目ID) 列表 + 完成时间
+    const projectNames = t.project_ids.map(pid => {
+      const info = state.projects.find(p => p.project_id === pid);
+      const name = info ? info.name : pid;
+      return `${name} (${pid})`;
+    });
+    const projectLabel = projectLabels(projectNames);
+    const finishedAt = t.finished_at ? new Date(t.finished_at * 1000).toLocaleString() : '';
     return `
-    <div class="task-card" data-task="${t.task_id}" data-action="toggle-history">
-      <div class="meta">
-        ${statusTag(t.state)} <code>${t.task_id}</code> · ${projectLabel}
-        <span style="float:right;cursor:pointer;" data-action="toggle-history" data-task="${t.task_id}">${collapsed ? '▸' : '▾'}</span>
+    <div class="task-card history-card ${collapsed ? 'collapsed' : ''}" data-task="${t.task_id}">
+      <div class="history-header" data-action="toggle-history" data-task="${t.task_id}">
+        <span class="log-caret">${collapsed ? '▸' : '▾'}</span>
+        ${statusTag(t.state)}
+        <span class="history-title">${projectLabel}</span>
+        <span class="history-time">${finishedAt}</span>
       </div>
-      <div class="details ${collapsed ? 'collapsed' : ''}">
+      <div class="details">
         <dl>
-          <dt>完成时间</dt><dd>${new Date(t.finished_at * 1000).toLocaleString()}</dd>
+          <dt>Task ID</dt><dd><code>${t.task_id}</code></dd>
           <dt>环境</dt><dd>${t.env_name}</dd>
-          <dt>项目</dt><dd><div class="tag-list">${t.project_ids.map(p => `<span class="tag">${p}</span>`).join('')}</div></dd>
+          <dt>项目</dt><dd><div class="tag-list">${projectNames.map(s => `<span class="tag">${s}</span>`).join('')}</div></dd>
           <dt>区域</dt><dd><div class="tag-list">${t.selected_regions.map(r => `<span class="tag">${r}</span>`).join('')}</div></dd>
           <dt>资源</dt><dd><div class="tag-list">${t.selected_resources.map(r => `<span class="tag">${r}</span>`).join('')}</div></dd>
           <dt>公钥</dt><dd>${t.public_key}</dd>
@@ -248,6 +256,13 @@ function renderHistory() {
       </div>
     </div>`;
   }).join("");
+}
+
+// 项目名称列表的简短展示：1 个全显示，多个显示第一个 + 等 N 个
+function projectLabels(names) {
+  if (!names.length) return '无项目';
+  if (names.length === 1) return names[0];
+  return `${names[0]} 等 ${names.length} 个项目`;
 }
 
 // ---------- 事件：全局日志面板 ----------
@@ -268,17 +283,16 @@ $("#clear-logs").addEventListener("click", () => {
 
 // ---------- 事件委托 ----------
 document.addEventListener("click", async (e) => {
-  // 历史任务卡片展开/收起
+  // 历史任务卡片展开/收起（与运行日志样式一致）
   const histToggle = e.target.closest("[data-action='toggle-history']");
   if (histToggle) {
     const taskId = histToggle.dataset.task;
-    const card = histToggle.closest(".task-card");
-    const details = card?.querySelector(".details");
-    const caret = card?.querySelector("[data-action='toggle-history']");
-    if (details && caret) {
-      const collapsed = details.classList.toggle("collapsed");
-      state.historyCollapsed[taskId] = collapsed;
-      caret.textContent = collapsed ? "▸" : "▾";
+    const card = histToggle.closest(".history-card");
+    if (card) {
+      const collapsed = card.classList.toggle("collapsed");
+      state.historyCollapsed[taskId] = !collapsed;
+      const caret = card.querySelector(".log-caret");
+      if (caret) caret.textContent = collapsed ? "▸" : "▾";
     }
     return;
   }
