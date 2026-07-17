@@ -18,7 +18,7 @@ _SDK_LOGGER_NAME = "sdk.delete_all_resources"
 
 _ASSETS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "gui", "assets",
+    "assets",
 )
 
 

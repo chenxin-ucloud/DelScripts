@@ -19,7 +19,9 @@ def _resolve_sdk_path():
 def _resolve_assets_path():
     if getattr(sys, 'frozen', False):
         return os.path.join(sys._MEIPASS, 'assets')
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'assets')
+    # 开发模式：从项目根目录读取（gui/core → gui → 根目录）
+    gui_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(os.path.dirname(gui_dir), 'assets')
 
 
 def run_deletion(state: AppState, log_queue: queue.Queue,

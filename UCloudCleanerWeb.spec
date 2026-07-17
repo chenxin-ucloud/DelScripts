@@ -4,7 +4,7 @@ import os
 block_cipher = None
 
 a = Analysis(
-    ['gui/main.py'],
+    ['web_launcher.py'],
     pathex=[os.path.abspath('.')],
     binaries=[],
     datas=[
@@ -12,6 +12,12 @@ a = Analysis(
         ('assets/region_test.json', 'assets'),
         ('sdk/delete_all_resources.py', 'sdk'),
         ('sdk/runner_core.py', 'sdk'),
+        ('web/static', 'web/static'),
+        ('web/sse.py', 'web'),
+        ('web/task_manager.py', 'web'),
+        ('web/log_handler.py', 'web'),
+        ('web/app.py', 'web'),
+        ('web/config.json', 'web'),
     ],
     hiddenimports=[
         'ucloud',
@@ -28,6 +34,10 @@ a = Analysis(
         'ucloud.services.ugn',
         'ucloud.services.uwsc',
         'requests',
+        'flask',
+        'jinja2',
+        'werkzeug',
+        'markupsafe',
     ],
     hookspath=[],
     runtime_hooks=[],
@@ -45,7 +55,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='UCloudCleaner',
+    name='UCloudCleanerWeb',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -61,18 +71,19 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='UCloudCleaner',
+    name='UCloudCleanerWeb',
 )
 
 app = BUNDLE(
     coll,
-    name='UCloudCleaner.app',
+    name='UCloudCleanerWeb.app',
     icon=None,
-    bundle_identifier='com.ucloud.cleaner',
+    bundle_identifier='com.ucloud.cleaner.web',
     info_plist={
         'NSHighResolutionCapable': True,
         'CFBundleShortVersionString': '1.0.0',
         'CFBundleVersion': '1.0.0',
         'LSMinimumSystemVersion': '11.0',
+        # 普通前台应用，显示 Dock 图标，支持顶部菜单栏
     },
 )
