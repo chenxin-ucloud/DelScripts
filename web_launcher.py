@@ -25,24 +25,14 @@ from PIL import Image, ImageDraw
 from web.app import create_app, _load_config
 
 
-# ---------- 图标生成 ----------
+# ---------- 图标 ----------
 def _create_icon():
-    """生成一个简单的托盘图标（扫帚）"""
-    width, height = 64, 64
-    image = Image.new("RGBA", (width, height), color=(0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-
-    # 扫帚柄（棕色）
-    draw.rectangle([30, 8, 36, 38], fill="#8B5A2B")
-    # 扫帚头（黄色稻草）
-    draw.polygon([(20, 38), (46, 38), (52, 58), (14, 58)], fill="#DAA520")
-    # 扫帚头纹理线条
-    draw.line([(24, 42), (20, 54)], fill="#B8860B", width=2)
-    draw.line([(30, 42), (28, 54)], fill="#B8860B", width=2)
-    draw.line([(36, 42), (36, 54)], fill="#B8860B", width=2)
-    draw.line([(42, 42), (44, 54)], fill="#B8860B", width=2)
-
-    return image
+    """加载项目根目录的 UCloud_Cleaner.png 作为托盘图标"""
+    import sys
+    # 打包后 PyInstaller 会把资源放到 _MEIPASS；开发模式直接取项目根目录
+    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    icon_path = os.path.join(base, 'UCloud_Cleaner.png')
+    return Image.open(icon_path).convert('RGBA')
 
 
 # ---------- 服务管理 ----------
@@ -84,7 +74,7 @@ class UCloudCleanerApp:
             _create_icon(),
             "UCloud Cleaner Web",
             menu=pystray.Menu(
-                pystray.MenuItem("打开浏览器", self._on_open_browser),
+                pystray.MenuItem("打开UCloud Cleaner", self._on_open_browser),
                 pystray.MenuItem("停止服务并退出", self._on_exit),
             ),
         )

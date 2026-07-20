@@ -8,6 +8,7 @@ a = Analysis(
     pathex=[os.path.abspath('.')],
     binaries=[],
     datas=[
+        ('UCloud_Cleaner.png', '.'),
         ('assets/region.json', 'assets'),
         ('assets/region_test.json', 'assets'),
         ('sdk/delete_all_resources.py', 'sdk'),
@@ -77,7 +78,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='UCloudCleanerWeb.app',
-    icon=None,
+    icon='UCloud_Cleaner.png',
     bundle_identifier='com.ucloud.cleaner.web',
     info_plist={
         'NSHighResolutionCapable': True,
