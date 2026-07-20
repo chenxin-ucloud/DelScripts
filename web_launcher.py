@@ -29,8 +29,8 @@ from web.app import create_app, _load_config
 def _create_icon():
     """加载项目根目录的 UCloud_Cleaner.png 作为托盘图标"""
     import sys
-    # 打包后 PyInstaller 会把资源放到 _MEIPASS；开发模式直接取项目根目录
-    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # 打包后 PyInstaller 会把资源放到 _MEIPASS；开发模式直接取脚本同级目录
+    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
     icon_path = os.path.join(base, 'UCloud_Cleaner.png')
     return Image.open(icon_path).convert('RGBA')
 
