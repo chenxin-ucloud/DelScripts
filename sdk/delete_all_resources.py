@@ -272,7 +272,36 @@ def delete_ugns(client, loc_name, region, zone, project_id, stop_event=None):
         resp = client.ugn().list_ugn()
         ugns = resp.get('UGNs', [])
         ugn_ids = [ugn['UGNID'] for ugn in ugns if 'UGNID' in ugn]
-        # 第一步：解绑所有 UGN 绑定的网络实例
+
+        # 第一步：删除 UGN 绑定的带宽包
+        for ugnid in ugn_ids:
+            if _stopped(stop_event):
+                return
+            try:
+                bw_resp = client.ugn().get_simple_ugn_bw_packages({'UGNID': ugnid})
+                bw_packages = bw_resp.get('BwPackages', [])
+                package_ids = [pkg['PackageID'] for pkg in bw_packages if 'PackageID' in pkg]
+
+                if package_ids:
+                    for pkg_id in package_ids:
+                        if _stopped(stop_event):
+                            return
+                        try:
+                            logger.info(f"[{loc_name}] 项目: {project_id} UGN {ugnid} 正在删除带宽包: {pkg_id}...")
+                            client.ugn().invoke('DeleteUGNBwPackage', {
+                                'UGNID': ugnid,
+                                'BwPackageID': pkg_id
+                            })
+                            time.sleep(1)
+                            logger.info(f"[{loc_name}] 项目: {project_id} UGN {ugnid} 删除带宽包: {pkg_id} 成功")
+                        except Exception as e:
+                            logger.warning(f"[{loc_name}] 项目: {project_id} UGN {ugnid} 删除带宽包 {pkg_id} 失败: {e}")
+                else:
+                    logger.info(f"[{loc_name}] 项目: {project_id} UGN {ugnid} 没有绑定带宽包")
+            except Exception as e:
+                logger.error(f"[{loc_name}] 项目: {project_id} 获取 UGN {ugnid} 带宽包列表失败: {e}")
+
+        # 第二步：解绑 UGN 绑定的网络实例
         for ugnid in ugn_ids:
             if _stopped(stop_event):
                 return
@@ -299,7 +328,7 @@ def delete_ugns(client, loc_name, region, zone, project_id, stop_event=None):
             except Exception as e:
                 logger.error(f"[{loc_name}] 项目: {project_id} 获取 UGN {ugnid} 网络实例列表失败: {e}")
 
-        # 第二步：删除所有 UGN
+        # 第三步：删除所有 UGN
         for ugnid in ugn_ids:
             if _stopped(stop_event):
                 return
