@@ -286,6 +286,10 @@ def delete_ugns(client, loc_name, region, zone, project_id, stop_event=None):
                     for pkg_id in package_ids:
                         if _stopped(stop_event):
                             return
+                        # 默认带宽包（default- 开头）不可删除，跳过
+                        if pkg_id.startswith('default-'):
+                            logger.info(f"[{loc_name}] 项目: {project_id} UGN {ugnid} 带宽包 {pkg_id} 为默认带宽包，跳过删除")
+                            continue
                         try:
                             logger.info(f"[{loc_name}] 项目: {project_id} UGN {ugnid} 正在删除带宽包: {pkg_id}...")
                             client.ugn().invoke('DeleteUGNBwPackage', {
