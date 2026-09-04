@@ -508,11 +508,36 @@ def delete_acls(client, loc_name, region, zone, project_id, stop_event=None):
 
 
 def delete_subnets(client, loc_name, region, zone, project_id, stop_event=None):
-    """删除子网"""
+    """删除子网（先释放子网关联的内网 VIP）"""
     try:
         resp = client.vpc().describe_subnet()
-        subnets = [subnet['SubnetId'] for subnet in resp.get("DataSet", []) if 'SubnetId' in subnet]
-        for subnetid in subnets:
+        subnets = resp.get("DataSet", [])
+        subnet_ids = [subnet['SubnetId'] for subnet in subnets if 'SubnetId' in subnet]
+
+        # 第一步：查询并释放内网 VIP（VIP 依附于子网，须先释放才能删除子网）
+        vpc_ids = {subnet.get('VPCId') for subnet in subnets if 'VPCId' in subnet}
+        for vpcid in vpc_ids:
+            if _stopped(stop_event):
+                return
+            try:
+                vip_resp = client.vpc().describe_vip({'VPCId': vpcid})
+                vips = vip_resp.get('VIPSet', [])
+                vip_ids = [vip['VIPId'] for vip in vips if 'VIPId' in vip]
+                for vipid in vip_ids:
+                    if _stopped(stop_event):
+                        return
+                    try:
+                        logger.info(f"[{loc_name}] 项目: {project_id} 正在释放内网 VIP: {vipid}...")
+                        client.vpc().release_vip({'VIPId': vipid})
+                        time.sleep(1)
+                        logger.info(f"[{loc_name}] 项目: {project_id} 释放内网 VIP: {vipid} 成功")
+                    except Exception as e:
+                        logger.warning(f"[{loc_name}] 释放内网 VIP {vipid} 失败: {e}")
+            except Exception as e:
+                logger.error(f"[{loc_name}] 获取 VPC {vpcid} 内网 VIP 列表失败: {e}")
+
+        # 第二步：删除子网
+        for subnetid in subnet_ids:
             if _stopped(stop_event):
                 return
             try:
